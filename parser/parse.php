@@ -41,26 +41,16 @@ try {
     $p->connectToDB();
     
     // new db
-
     $p->createTable(["all"]);
     $files = array();
     $files = glob('data//Kontoauszug_1013152713_Nr*.txt');
-    #asort($files);
+    asort($files);
     // only use one file for development
     #$files = array();
     #$files[0] = "data/Kontoauszug_1013152713_Nr_2013_004_per_2013_04_04_0.txt";
     
     $p->log->debug('used Files: ',$files);
-    
     $p->addDataFromFiles($files);
-    
-    #foreach ($files as $fileIndex=>$origfile) {
-    #    $p->analyzeKontoAuszugFileN($origfile);
-    #}
-        
-    
-    
-    #umsatzids aus lookupstructure updaten !
 
 }
 catch(PDOException $e) {

@@ -60,16 +60,33 @@ try {
 
     #$startDate = mktime(0,0,0,$curMonth,1,$curYear);
     #$endDate = mktime(0,0,0,$curMonth,30,$curYear);
-    #print ($startDate."=".gmdate(DATE_ISO8601,$startDate)."\n");
-    #print ($endDate."=".gmdate(DATE_ISO8601,$endDate)."\n");
+    #print ($startDate."=".date("Y-m-d",$startDate)."\n");
+    #print ($endDate."=".date("Y-m-d",$endDate)."\n");
     
-    $startDate = new DateTime('last day of this month');  # or now
-    $endDate = new DateTime('first day of this month');  # or now
+    #$startDate = new DateTime('first day of last month');  # or now
+    #$startDate->modify('+15 day');
+    #$endDate = new DateTime('last day of last month');  # or now
+    #$p->log->info("start: ".$startDate->format("Y-m-d")." = ".$startDate->format("U")."\n");
+    #$p->log->info("end: ".$endDate->format("Y-m-d")." = ".$startDate->format("U")."\n");
+        
+    #$p->checkErwBuchungen( $startDate->format("Y-m-d"),$endDate->format("Y-m-d")  );
+    #$p->checkErwBuchungen( $startDate->format("U"),$endDate->format("U")  );
     
+    #print(strtotime("2019-01"));
+    #print(date("Y-m-d",strtotime("2019-01")));
+    
+    #strtotime("2019-01")
+    
+    #$startDate = strtotime("20190101");
+    #$endDate = strtotime("20190131");
+    
+    $startDate = new DateTime('first day of 2019-01');
+    $endDate = new DateTime('last day of 2019-01');
     $p->log->info("start: ".$startDate->format("Y-m-d")." = ".$startDate->format("U")."\n");
     $p->log->info("end: ".$endDate->format("Y-m-d")." = ".$startDate->format("U")."\n");
-        
-    $p->checkErwBuchungen( $startDate->format("Y-m-d"),$endDate->format("Y-m-d")  );
+    
+    
+    $p->checkErwBuchungenInMonth($startDate->format("U"),$endDate->format("U"));
     
     
 

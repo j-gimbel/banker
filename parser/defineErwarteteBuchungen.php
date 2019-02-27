@@ -50,13 +50,13 @@ try {
     
     array_push($erwBuchungen,array("name"=>"HausGeld2", "serchRegEx"=>json_encode(array("buchungstext"=>"/Hans-Peter Beck.*StPl/","changeValue"=>"-12...-3")),"dateRule"=>"monthly","expectedDayOfMonth"=>"1...5","dateStart"=>"2013-01-01","dateEnd"=>"")); 
     
-    array_push($erwBuchungen,array("name"=>"Miete", "serchRegEx"=>json_encode(array("buchungstext"=>"/Miete.* Kornstra.*e/","changeValue"=>"950")),"dateRule"=>"monthly","expectedDayOfMonth"=>"01...05","dateStart"=>"2018-10-01","dateEnd"=>"")); 
+    array_push($erwBuchungen,array("name"=>"Miete", "serchRegEx"=>json_encode(array("buchungstext"=>"/Miete.* Kornstra.*e/","changeValue"=>"950")),"dateRule"=>"monthly","expectedDayOfMonth"=>"1...5","dateStart"=>"2018-10-01","dateEnd"=>"")); 
     
     array_push($erwBuchungen,array("name"=>"SWB-Wasser", "serchRegEx"=>json_encode(array("buchungstext"=>"/SWB VERTRIEB BREMEN.*K-45342912.*A-97290919/","changeValue"=>"-7")),"dateRule"=>"monthly","expectedDayOfMonth"=>"20...26","dateStart"=>"2018-11-01","dateEnd"=>"")); 
     
-    array_push($erwBuchungen,array("name"=>"EON-Gas", "serchRegEx"=>json_encode(array("buchungstext"=>"/E.ON Energie Deutschland.*VK.*232051930830/","changeValue"=>"-86")),"dateRule"=>"monthly","expectedDayOfMonth"=>"3..10","dateStart"=>"2018-11-01","dateEnd"=>"")); 
+    array_push($erwBuchungen,array("name"=>"EON-Gas", "serchRegEx"=>json_encode(array("buchungstext"=>"/E\.ON Energie Deutschland.*VK.*232051930830/","changeValue"=>"-86")),"dateRule"=>"monthly","expectedDayOfMonth"=>"3..10","dateStart"=>"2018-11-01","dateEnd"=>"")); 
     
-    array_push($erwBuchungen,array("name"=>"DWS-Riester", "serchRegEx"=>json_encode(array("buchungstext"=>"/DWS Investment GmbH.*T201691401/","changeValue"=>"-75")),"dateRule"=>"monthly","expectedDayOfMonth"=>"03..10","dateStart"=>"2018-11-01","dateEnd"=>"")); 
+    array_push($erwBuchungen,array("name"=>"DWS-Riester", "serchRegEx"=>json_encode(array("buchungstext"=>"/DWS Investment GmbH.*T201691401/","changeValue"=>"-75")),"dateRule"=>"monthly","expectedDayOfMonth"=>"3..10","dateStart"=>"2018-11-01","dateEnd"=>"")); 
     
     array_push($erwBuchungen,array("name"=>"Airbus-Gehalt", "serchRegEx"=>json_encode(array("buchungstext"=>"/AIRBUS OPERATIONS.*Lohn.*Gehalt/","changeValue"=>"3000...6000")),"dateRule"=>"monthly","expectedDayOfMonth"=>"24..31","dateStart"=>"2014-03-01","dateEnd"=>"")); 
     

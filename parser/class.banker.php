@@ -172,75 +172,144 @@ class parser {
         }
     }
     
-    
-    
     private function checkErwBuchung ($buchung,$erwBuchung) {
+      
+        $matches = array();
       
         foreach ($erwBuchung['serchRegEx'] as $key=>$regex) {
             
-            #print ("$key=>$regex\n");
-           # print_r ($buchung);
-            
-            $matches = array();
+            # print ("$key=>$regex\n");
+            # print_r ($buchung);
             
             if (isset ($buchung[$key]) ) {
                 if (in_array($key,array('buchungstext'))) {
                     if (preg_match( $regex, $buchung[$key] ) === 1) {
-                      print ("match key $key $regex for ".$buchung[$key]."\n");
-                      
-                      $matches[$key] = True;
-                      
+                      #print ("match key $key $regex for ".$buchung[$key]."\n");
+                      $matches[$key] = 1;
                     }else {
-                      $matches[$key] = False;
+                      $matches[$key] = 'Did not match $key = $regex in '.$buchung["buchungstext"];
                     }
                 }
                 else if (in_array($key,array('changeValue'))) {
-                  
                   $values = explode("...",$erwBuchung['serchRegEx']['changeValue']);
                   $valueToCheck = $buchung['changeValue'];
-                 
                   if (count($values) >1) {
                      $lowerValue = floatval($values[0]);
                     $upperValue = floatval($values[1]);
                     if ( ($lowerValue < $valueToCheck) and ($upperValue >= $valueToCheck) ) {
-                       print ("match key $key $regex for ".$buchung[$key]."\n");
-                       $matches[$key] = True;
+                       #print ("match key $key $regex for ".$buchung[$key]."\n");
+                       $matches[$key] = 1;
                     } else{
                       $matches[$key] = False;
-                      
                     }
- 
                   } else {
                     $value = floatval($erwBuchung['serchRegEx']['changeValue']);
-                    
                     if (abs($value-$valueToCheck) < 0.01) {
-                      print ("match key $key $regex for ".$buchung[$key]."\n");
+                      #print ("match key $key $regex for ".$buchung["changeValue"]."\n");
+                    } else {
+                      $matches[$key] = 'Did not find changeValue = $value. Value found is '.$buchung["changeValue"];
                     }
-                    
                   }
                 }
                 else {
-                    $this->log->error("unknown key $key while trying to check erwarteteBuchung. erwBuchungsID = ".$erwBuchung['erwBuchungsID']);
+                    $matches[$key] = 'Unknown search key $key';
                 }
             }else {
-              
-                $this->log->warn("unknown key $key while trying to check erwarteteBuchung. erwBuchungsID = ".$erwBuchung['erwBuchungsID']);
+                $matches[$key] = 'Did not find search key $key in Buchung array';
             }
-            
-          
         }
+        
+        $errortext = "";
+        
+        foreach ($matches as $key=> $text) {
+          if ($text !== 1) {
+             $errortext .= $text;
+          }
+        }
+        if ($errortext !== "") {
+          return $errortext;
+        
+        } else {
+          
+          return 1;
+        }
+        
+
+    }
+    
+    public function checkErwBuchungenInMonth ($startDate,$endDate) {
+      
+      $startDay = date("d",$startDate);
+      $endDay = date("d",$startDate);
+      
+      $sth = $this->db->prepare("SELECT erwBuchungsID, name,serchRegEx,dateRule,expectedDayOfMonth,dateStart,dateEnd FROM erwarteteBuchungen");
+      $sth->execute();
+      $data = $sth->fetchAll(PDO::FETCH_ASSOC);
+      foreach ($data as $row) {
+         
+          $this->lookup['erwarteteBuchungen'][$row['name']] = array();  
+          $this->lookup['erwarteteBuchungen'][$row['name']]['erwBuchungsID'] = $row['erwBuchungsID'];
+          $this->lookup['erwarteteBuchungen'][$row['name']]['serchRegEx'] = json_decode($row['serchRegEx'],true);
+          $this->lookup['erwarteteBuchungen'][$row['name']]['dateRule'] = $row['dateRule'];
+          $this->lookup['erwarteteBuchungen'][$row['name']]['expectedDayOfMonth'] = $row['expectedDayOfMonth'];
+          $this->lookup['erwarteteBuchungen'][$row['name']]['dateStart'] = $row['dateStart'];
+          $this->lookup['erwarteteBuchungen'][$row['name']]['dateEnd'] = $row['dateEnd'];
+      }
+      
+      $sql = "SELECT * FROM umsaetzeGiroKonto WHERE buchungstag > date('".$startDate."','unixepoch') AND buchungstag < date('".$endDate."','unixepoch')";
+      print($sql."\n");
+      $sth = $this->db->prepare( $sql );
+      $sth->execute();
+      $buchungen = $sth->fetchAll(PDO::FETCH_ASSOC);
+
+      #print(count($buchungen));
+      
+      foreach ($this->lookup['erwarteteBuchungen'] as $erwBuchungName=>$erwBuchung) {
+        
+          $isErwarteteBuchung = 0;
+          $returnText = "";
+          #foreach ($this->lookup['erwarteteBuchungen'] as $indexUnused=>$erwBuchung) {
+          foreach ($buchungen as $buchung) {
+              if($this->checkErwBuchung($buchung,$erwBuchung) === 1) {
+                $isErwarteteBuchung = 1;
+                break;
+              }
+          }
+          if ($isErwarteteBuchung === 1) {
+              $this->log->info("found erwartete Buchung ".$erwBuchungName." for Buchung ".substr($buchung['buchungstext'],0,30)." value= ".$buchung['changeValue']."...");
+            
+          } else {
+              $this->log->info("did not find erwartete Buchung".$erwBuchungName);
+          }
+      }
+      
       
       
       
     }
+    
+    
     
     public function checkErwBuchungen ($startDate,$endDate) {
       // get erwarteteBuchnungn from table
         $sth = $this->db->prepare("SELECT erwBuchungsID, name,serchRegEx,dateRule,expectedDayOfMonth,dateStart,dateEnd FROM erwarteteBuchungen");
         $sth->execute();
         $data = $sth->fetchAll(PDO::FETCH_ASSOC);
+        
+        
+        
+        $startDay = date("d",$startDate);
+        $endDay = date("d",$endDate);
+        
+        $deltaDays = date("d",$endDate-$startDate);
+        print ("$deltaDays\n");
+        
+        
+        $startMonth = date("d",$startDate);
+        $endMonth = date("d",$endDate);
+        
         foreach ($data as $row) {
-          
+            
             $this->lookup['erwarteteBuchungen'][$row['name']] = array();  
             $this->lookup['erwarteteBuchungen'][$row['name']]['erwBuchungsID'] = $row['erwBuchungsID'];
             $this->lookup['erwarteteBuchungen'][$row['name']]['serchRegEx'] = json_decode($row['serchRegEx'],true);
@@ -250,7 +319,7 @@ class parser {
             $this->lookup['erwarteteBuchungen'][$row['name']]['dateEnd'] = $row['dateEnd'];
         }
         
-        $sql = "SELECT * FROM umsaetzeGiroKonto WHERE buchungstag < date('".$startDate."') AND buchungstag > date('".$endDate."')";
+        $sql = "SELECT * FROM umsaetzeGiroKonto WHERE buchungstag > date('".$startDate."') AND buchungstag < date('".$endDate."')";
         print($sql."\n");
         $sth = $this->db->prepare( $sql );
         $sth->execute();
@@ -258,16 +327,23 @@ class parser {
         
         #print(count($buchungen));
         
-        foreach ($buchungen as $buchung) {
-          #print_r($buchung);
-          
-          foreach ($this->lookup['erwarteteBuchungen'] as $indexUnused=>$erwBuchung) {
-              #print_r($erwBuchung);
-              $return = $this->checkErwBuchung($buchung,$erwBuchung);
-            
+        #foreach ($buchungen as $buchung) {
+        foreach ($this->lookup['erwarteteBuchungen'] as $erwBuchungName=>$erwBuchung) {
+          $isErwarteteBuchung = 0;
+          $returnText = "";
+          #foreach ($this->lookup['erwarteteBuchungen'] as $indexUnused=>$erwBuchung) {
+          foreach ($buchungen as $buchung) {
+              if($this->checkErwBuchung($buchung,$erwBuchung) === 1) {
+                $isErwarteteBuchung = 1;
+                break;
+              }
           }
-           
-          
+          if ($isErwarteteBuchung === 1) {
+              $this->log->info("found erwartete Buchung ".$erwBuchungName." for Buchung ".substr($buchung['buchungstext'],0,30)." value= ".$buchung['changeValue']."...");
+            
+          } else {
+              $this->log->info("did not find erwartete Buchung".$erwBuchungName);
+          }
         }
       
       // get umsaetze betweenn start and end date
@@ -543,8 +619,16 @@ class parser {
         
         if (preg_match("/Kontoauszug Nummer \d+ \/ \d+ vom (\d\d)\.(\d\d)\.(\d+) bis (\d\d)\.(\d\d)\.(\d+)/", $fileData, $matches)  ===1 )  {
             $this->currentFile["beginnDatum"] = date("c",mktime(12,0,0,$matches[2],$matches[1],$matches[3]));
+            
+            $this->currentFile["beginnJahr"] = intval($matches[3]);
+            
             $this->currentFile["endDatum"] = date("c",mktime(12,0,0,$matches[5],$matches[4],$matches[6]));
-            $this->currentFile["year"] = $matches[3];
+            
+            $this->currentFile["endJahr"] = intval($matches[6]);
+                        
+            
+            
+            #$this->currentFile["year"] = $matches[3];
         } else throw new Exception("Could not find Kontoauszug Datums in file $origfile\n");
 
         $this->currentFile["buchungsIDsArray"] = array();
@@ -622,12 +706,29 @@ class parser {
                     }
                     #$buchung["buchungsTag"]     = date("c",mktime(12,0,0,$matches[2][0],$matches[1][0], $this->currentFile["year"] ));
                     
-                    $buchung["buchungsTag"] = date("Y-m-d",strtotime($this->currentFile["year"]."-".$matches[2][0]."-".$matches[1][0]));
                     
                     
-                    #$buchung["werstellungsTag"] = date("c",mktime(12,0,0,$matches[4][0],$matches[3][0], $this->currentFile["year"] ));
+                    $month = $matches[2][0];
                     
-                    $buchung["werstellungsTag"] = date("Y-m-d",strtotime($this->currentFile["year"]."-".$matches[4][0]."-".$matches[3][0]));
+                    if (intval($month) == 12) {
+                      $buchung["buchungsTag"] = date("Y-m-d",strtotime($this->currentFile["beginnJahr"]."-".$matches[2][0]."-".$matches[1][0]));
+                      
+                    } else {
+                      $buchung["buchungsTag"] = date("Y-m-d",strtotime($this->currentFile["endJahr"]."-".$matches[2][0]."-".$matches[1][0]));
+                      
+                    }
+                    
+                    
+                    #$buchung["buchungsTag"] = date("Y-m-d",strtotime($this->currentFile["year"]."-".$matches[2][0]."-".$matches[1][0]));
+                    
+
+                    
+                    $month = $matches[4][0];
+                    if (intval($month) == 12) {
+                      $buchung["werstellungsTag"] = date("Y-m-d",strtotime($this->currentFile["beginnJahr"]."-".$matches[4][0]."-".$matches[3][0]));
+                    } else {
+                      $buchung["werstellungsTag"] = date("Y-m-d",strtotime($this->currentFile["endJahr"]."-".$matches[4][0]."-".$matches[3][0]));
+                    }
                     
                     
                     
