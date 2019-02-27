@@ -11,6 +11,7 @@ function exception_error_handler($severity, $message, $file, $line) {
 }
 set_error_handler("exception_error_handler");
 
+
 class wrongValuesSumException extends Exception {};
 
 class parser {
@@ -37,7 +38,7 @@ class parser {
         
         #$this->tables["buchungsGruppen"] = "CREATE TABLE IF NOT EXISTS buchungsGruppen (buchungsGruppenID INTEGER PRIMARY KEY, name TEXT, buchungsArtRegex TEXT, mandatRegex TEXT, info TEXT)"; 
         
-        $this->tables["erwarteteBuchungen"] = "CREATE TABLE IF NOT EXISTS erwarteteBuchungen (erwBuchungsID INTEGER PRIMARY KEY, name TEXT, serchRegEx TEXT, info TEXT)"; 
+        $this->tables["erwarteteBuchungen"] = "CREATE TABLE IF NOT EXISTS erwarteteBuchungen (erwBuchungsID INTEGER PRIMARY KEY, name TEXT, serchRegEx TEXT, dateRule TEXT, expectedDayOfMonth TEXT,dateStart TEXT, dateEnd TEXT)"; 
         
         
         $this->tables["mandate"] = "CREATE TABLE IF NOT EXISTS mandate (mandatID INTEGER PRIMARY KEY, mandatName TEXT, CRED TEXT, MREF TEXT, umsatzIDsJsonArray TEXT)";
@@ -102,7 +103,7 @@ class parser {
             $this->lookup['kontoauszuege'][$row['filename']] = $row['kontoauszugID'];
         }
         $this->lookup['buchungsArten'] = array();
-        $sth = $this->db->prepare("SELECT buchungsartID,name,info FROM buchungsArten");
+        $sth = $this->db->prepare("SELECT buchungsartID,name,umsatzIDs,info FROM buchungsArten");
         $sth->execute();
         $data = $sth->fetchAll(PDO::FETCH_ASSOC);
         foreach ($data as $row) {
@@ -133,7 +134,6 @@ class parser {
         $data = $sth->fetchAll(PDO::FETCH_ASSOC);
         foreach ($data as $row) {
           $this->lookup['mandate'][$row['mandatID']] = array();
-          
           $this->lookup['mandate'][$row['mandatID']]['mandatName'] = $row['mandatName'];
           $this->lookup['mandate'][$row['mandatID']]['MREF'] = $row['MREF'];
           $this->lookup['mandate'][$row['mandatID']]['CRED'] = $row['CRED'];
@@ -141,7 +141,7 @@ class parser {
         }
  
         $this->log->info('done: init lookupStructure');
-        $this->log->debug('done: init lookupStructure',$this->lookup);
+        #$this->log->debug('done: init lookupStructure',$this->lookup);
         
     }
     
@@ -154,16 +154,138 @@ class parser {
 
         // connect umsatzIDs
         foreach ($this->lookup['buchungsArten'] as $buchungsArt=>$dummy) {
+            
             $buchungsartID = $this->lookup['buchungsArten'][$buchungsArt]['buchungsartID'];
             $umsatzIDs = json_encode(array_unique($this->lookup['buchungsArten'][$buchungsArt]['umsatzIDs']),JSON_NUMERIC_CHECK);
             
             $update = "UPDATE buchungsArten SET umsatzIDs = :umsatzIDs WHERE buchungsartID = :buchungsartID";
-            $stmt = $this->db->prepare($update);
-            $stmt->bindParam(':umsatzIDs', $umsatzIDs );
-            $stmt->bindParam(':buchungsartID', $buchungsartID );
-            $stmt->execute(); 
+           
+            try {
+                $stmt = $this->db->prepare($update);
+                $stmt->bindParam(':umsatzIDs', $umsatzIDs );
+                $stmt->bindParam(':buchungsartID', $buchungsartID );
+                $stmt->execute(); 
+            } catch(PDOException $e) {
+                // Print PDOException message
+                echo "PDO exception in ".$e->getFile()." in ".$e->getLine().": ".$e->getMessage()."\n";
+            }
         }
     }
+    
+    
+    
+    private function checkErwBuchung ($buchung,$erwBuchung) {
+      
+        foreach ($erwBuchung['serchRegEx'] as $key=>$regex) {
+            
+            #print ("$key=>$regex\n");
+           # print_r ($buchung);
+            
+            $matches = array();
+            
+            if (isset ($buchung[$key]) ) {
+                if (in_array($key,array('buchungstext'))) {
+                    if (preg_match( $regex, $buchung[$key] ) === 1) {
+                      print ("match key $key $regex for ".$buchung[$key]."\n");
+                      
+                      $matches[$key] = True;
+                      
+                    }else {
+                      $matches[$key] = False;
+                    }
+                }
+                else if (in_array($key,array('changeValue'))) {
+                  
+                  $values = explode("...",$erwBuchung['serchRegEx']['changeValue']);
+                  $valueToCheck = $buchung['changeValue'];
+                 
+                  if (count($values) >1) {
+                     $lowerValue = floatval($values[0]);
+                    $upperValue = floatval($values[1]);
+                    if ( ($lowerValue < $valueToCheck) and ($upperValue >= $valueToCheck) ) {
+                       print ("match key $key $regex for ".$buchung[$key]."\n");
+                       $matches[$key] = True;
+                    } else{
+                      $matches[$key] = False;
+                      
+                    }
+ 
+                  } else {
+                    $value = floatval($erwBuchung['serchRegEx']['changeValue']);
+                    
+                    if (abs($value-$valueToCheck) < 0.01) {
+                      print ("match key $key $regex for ".$buchung[$key]."\n");
+                    }
+                    
+                  }
+                }
+                else {
+                    $this->log->error("unknown key $key while trying to check erwarteteBuchung. erwBuchungsID = ".$erwBuchung['erwBuchungsID']);
+                }
+            }else {
+              
+                $this->log->warn("unknown key $key while trying to check erwarteteBuchung. erwBuchungsID = ".$erwBuchung['erwBuchungsID']);
+            }
+            
+          
+        }
+      
+      
+      
+    }
+    
+    public function checkErwBuchungen ($startDate,$endDate) {
+      // get erwarteteBuchnungn from table
+        $sth = $this->db->prepare("SELECT erwBuchungsID, name,serchRegEx,dateRule,expectedDayOfMonth,dateStart,dateEnd FROM erwarteteBuchungen");
+        $sth->execute();
+        $data = $sth->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($data as $row) {
+          
+            $this->lookup['erwarteteBuchungen'][$row['name']] = array();  
+            $this->lookup['erwarteteBuchungen'][$row['name']]['erwBuchungsID'] = $row['erwBuchungsID'];
+            $this->lookup['erwarteteBuchungen'][$row['name']]['serchRegEx'] = json_decode($row['serchRegEx'],true);
+            $this->lookup['erwarteteBuchungen'][$row['name']]['dateRule'] = $row['dateRule'];
+            $this->lookup['erwarteteBuchungen'][$row['name']]['expectedDayOfMonth'] = $row['expectedDayOfMonth'];
+            $this->lookup['erwarteteBuchungen'][$row['name']]['dateStart'] = $row['dateStart'];
+            $this->lookup['erwarteteBuchungen'][$row['name']]['dateEnd'] = $row['dateEnd'];
+        }
+        
+        $sql = "SELECT * FROM umsaetzeGiroKonto WHERE buchungstag < date('".$startDate."') AND buchungstag > date('".$endDate."')";
+        print($sql."\n");
+        $sth = $this->db->prepare( $sql );
+        $sth->execute();
+        $buchungen = $sth->fetchAll(PDO::FETCH_ASSOC);
+        
+        #print(count($buchungen));
+        
+        foreach ($buchungen as $buchung) {
+          #print_r($buchung);
+          
+          foreach ($this->lookup['erwarteteBuchungen'] as $indexUnused=>$erwBuchung) {
+              #print_r($erwBuchung);
+              $return = $this->checkErwBuchung($buchung,$erwBuchung);
+            
+          }
+           
+          
+        }
+      
+      // get umsaetze betweenn start and end date
+      
+      // loop over umsaezte, check with regex if expected day of month already reached
+      
+      // if found, check value
+      
+      // else: warn
+      
+      
+      
+      
+      
+      
+      
+    }
+    
     
     
     private function filterMandatName($mandatName) {
@@ -182,7 +304,7 @@ class parser {
         $regexArray['/(NETTO-EINFACH|NETTO SAGT|NETTO MARKEN)/'] = "NETTO Markt";
         $regexArray['/PENNY SAGT/i'] = "PENNY Markt";
         $regexArray['/ALDI SAGT/i'] = "ALDI Markt";
-        $regexArray['/COMBI.* SAGT/i'] = "Combi Markt";
+        $regexArray['/COMBI\s/i'] = "Combi Markt";
         $regexArray['/DANKE.*IHR LIDL/i'] = "LIDL Markt";
         $regexArray['/(SPAR-MARKT|SPAR DIREKT)/'] = "SPAR Markt";
         $regexArray['/MEDIA MARKT/i'] = "Media Markt";
@@ -475,7 +597,9 @@ class parser {
                         if (($firstBuchungOnPage == True) and ($pageIndex > 0)) {
                             // the current data hold in $buchung must be a fragment from the previous page;
                             // so we add it there an clear it
-                            $this->log->debug('found Buchung fragment on page '.($pageIndex+1).": ".$buchung["buchungsart"]);
+                            
+                            #$this->log->debug('found Buchung fragment on page '.($pageIndex+1).": ".$buchung["buchungsart"]);
+                            
                             // find out last index of previous page
                             $buchungsIndexArray = array_keys($this->currentFile["pages"][$pageIndex-1]["buchungen"]);
                             $lastIndex = $buchungsIndexArray[count($buchungsIndexArray)-1];
@@ -496,8 +620,17 @@ class parser {
                             #print_r($buchung);
                         }
                     }
-                    $buchung["buchungsTag"]     = date("c",mktime(12,0,0,$matches[2][0],$matches[1][0], $this->currentFile["year"] ));
-                    $buchung["werstellungsTag"] = date("c",mktime(12,0,0,$matches[4][0],$matches[3][0], $this->currentFile["year"] ));
+                    #$buchung["buchungsTag"]     = date("c",mktime(12,0,0,$matches[2][0],$matches[1][0], $this->currentFile["year"] ));
+                    
+                    $buchung["buchungsTag"] = date("Y-m-d",strtotime($this->currentFile["year"]."-".$matches[2][0]."-".$matches[1][0]));
+                    
+                    
+                    #$buchung["werstellungsTag"] = date("c",mktime(12,0,0,$matches[4][0],$matches[3][0], $this->currentFile["year"] ));
+                    
+                    $buchung["werstellungsTag"] = date("Y-m-d",strtotime($this->currentFile["year"]."-".$matches[4][0]."-".$matches[3][0]));
+                    
+                    
+                    
                     $buchung["buchungsart"] = $this->filterBuchungsArtName(trim($matches[5][0]));
                     $changeValuePosition   = $matches[6][1];
                     $changeValue           = str_replace(".","",$matches[6][0]);
@@ -558,7 +691,8 @@ class parser {
                 #print_r($buchung);
                 
                 # seems to be a fragment. add this to last 
-                $this->log->debug('found Buchung fragment on page '.($pageIndex+1).": ".$buchung["buchungsart"]);
+                
+                #$this->log->debug('found Buchung fragment on page '.($pageIndex+1).": ".$buchung["buchungsart"]);
 
                 // find out last index of previous page
                 $buchungsIndexArray = array_keys($this->currentFile["pages"][$pageIndex-1]["buchungen"]);
