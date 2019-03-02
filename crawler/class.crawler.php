@@ -5,6 +5,7 @@ require_once('simple_html_dom.php');
 require('config.php');
 $url = 'https://www.dkb.de/';
 
+require("../parser/class.parser.php");
 
 function exception_error_handler($severity, $message, $file, $line) {
     if (!(error_reporting() & $severity)) {
@@ -21,6 +22,10 @@ class wrongValuesSumException extends Exception {};
 class crawler {
   
   public $url = 'https://www.dkb.de/';
+  public $debug = True;
+  public $log;
+  public data;
+  
   public function __construct() {
     
     #$this->url = url = 'https://www.dkb.de/';
@@ -55,7 +60,7 @@ class crawler {
   
   
   
-  public function getDataToCSV() {
+  public function doCrawl() {
     require('config.php');
     //
     // CURL init
@@ -123,6 +128,11 @@ class crawler {
       $html = $this->doCurlGet($this->url . 'DkbTransactionBanking/content/banking/financialstatus/FinancialComposite/FinancialStatus.xhtml?$event=paymentTransaction&row='.$cnt.'&group=0',$ch);
       
       $idCounter = 0;
+      
+      
+      $p = new parser;
+      $p->makeLookupStructure();
+      
       while (True) {
         print ("Counter $idCounter\n");
         $html = $this->doCurlGet($this->url .'banking/finanzstatus/kontoumsaetze?$event=pick&id='.$idCounter,$ch);
@@ -137,13 +147,82 @@ class crawler {
         $spans = array();
         
         foreach ($detailsForm->find('span') as $index => $span) {
-          
           $text = trim($span->plaintext);
           #print ($text."\n");
           array_push($spans,$text);
         }
         #print_r($spans);
+        
+        foreach (array (0,2,4,5,9,11,13,15,17,19)   as $index ) {
+          
+          $foundKey = 0;
+          foreach (array("Kontonummer","Buchungstag","Wertstellung","Betrag","Auftraggeber / Begünstigter","IBAN / BIC","Buchungstext","Verwendungszweck","Kundenreferenz","Als Überweisung verwenden") as $key ) {
+          
+            if (preg_match("/".$key."/",$spans[$index]) === 1) {
+              $foundKey = 1;
+            }
+          }
+          
+          if ($foundKey == 0) {
+            
+            print ("Did not find $spans[$index] in buchung. Stopping...");
+            exit;
+            
+          }
+          
+        }
+        $buchung = array();
+        $buchung["buchungsTag"] = date("Y-m-d", strtotime($spans[3]) );
+        $buchung["wertstellungstag"] = date("Y-m-d", strtotime($spans[5]) );
+        #$buchung["buchungsartID"] = 
+        $buchung["buchungsart"] = $p->filterBuchungsArtName($spans[14]);
+        if ( isset($this->lookup['buchungsArten'][$buchung["buchungsart"]]) ) {
+          $buchung["buchungsartID"] = $this->lookup['buchungsArten'][$buchung["buchungsart"]]['buchungsartID'];
+        } else { 
+          $buchung["buchungsartID"] = $this->addBuchungsArt($buchung["buchungsart"],"found first time in file '".$this->currentFile["name"]."'");
+        }
+        
+            
+        #$buchung["buchungsGruppenIDs"] = 
+        $buchung["changeValue"] = $spans[8];
+        #$buchung["absValue"] = 
+        $buchung["buchungstext"] = $spans[10]." ".$spans[16];
+        $buchung["mandatName"] = $this->filterMandatName($spans[10]);
+        $buchung["mandatID"] = 0;
+        foreach ($this->lookup['mandate'] as $possibleMandatID => $dummy) {
+          $mandatName = $this->lookup['mandate'][$possibleMandatID]['mandatName'];
+            if ($mandatName == $buchung["mandatName"]) {
+              if ($CRED == $buchung["sepa"]["CRED"])  {
+                    $buchung["mandatID"] = $possibleMandatID;
+                  break;
+              }
+          }
+        }
+        if ($buchung["mandatID"] == 0) {
+        // no mandatID found, add as new
+          $buchung["mandatID"] = $p->addMandat($buchung["mandatName"],$buchung["sepa"]["CRED"],$buchung["sepa"]["MREF"]);
+        }
+        $data["kontoauszugdateiID"] = 0;
+        
+        $buchung["sepaJSON"] = array();
+        $buchung["sepaJSON"]["KREF"] = $spans[18];
+        
+        $buchung["sepaJSON"]["IBAN"] = preg_split('/\s*\/\s*',$spans[12])[0];
+        $buchung["sepaJSON"]["BIC"] = preg_split('/\s*\/\s*',$spans[12])[2];
+
+        
+        
+        
+        
+        
+        
+        
+        
         file_put_contents("$idCounter.txt",print_r($spans,true));
+        
+        
+        
+        
         /*
 
         Array

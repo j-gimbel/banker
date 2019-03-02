@@ -8,7 +8,7 @@
 error_reporting(-1);
 date_default_timezone_set("Europe/Berlin");
 require_once('../vendor/autoload.php');
-require_once "class.banker.php";
+require_once "class.parser.php";
 
 #print(__DIR__ . '/vendor/autoload.php');
 use Monolog\Logger;
@@ -51,7 +51,7 @@ try {
     
     $p->log->debug('used Files: ',$files);
     $p->addDataFromFiles($files);
-
+    #print(json_encode($p->lookup['mandate']));
 }
 catch(PDOException $e) {
     // Print PDOException message
