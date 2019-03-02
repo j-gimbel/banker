@@ -43,9 +43,11 @@ class parser {
         
         $this->tables["mandate"] = "CREATE TABLE IF NOT EXISTS mandate (mandatID INTEGER PRIMARY KEY, mandatName TEXT, CRED TEXT, MREF TEXT, umsatzIDsJsonArray TEXT)";
         
-        $this->tables["umsaetzeGiroKonto"] = "CREATE TABLE IF NOT EXISTS umsaetzeGiroKonto (umsatzID INTEGER PRIMARY KEY, buchungstag TEXT, wertstellungstag TEXT, buchungsartID INTEGER,buchungsGruppenIDs, changeValue REAL, absValue REAL, buchungstext TEXT, SVWZ TEXT,EREF TEXT, mandatID INTEGER, kontoauszugdateiID INTEGER)";
+        #$this->tables["umsaetzeGiroKonto"] = "CREATE TABLE IF NOT EXISTS umsaetzeGiroKonto (umsatzID INTEGER PRIMARY KEY, buchungstag TEXT, wertstellungstag TEXT, buchungsartID INTEGER,buchungsGruppenIDs, changeValue REAL, absValue REAL, buchungstext TEXT, SVWZ TEXT,EREF TEXT, mandatID INTEGER, kontoauszugdateiID INTEGER)";
         
-        # to change : changeValue --> changeValue;   new column : absValue
+        $this->tables["umsaetzeGiroKonto"] = "CREATE TABLE IF NOT EXISTS umsaetzeGiroKonto (umsatzID INTEGER PRIMARY KEY, buchungstag TEXT, wertstellungstag TEXT, buchungsartID INTEGER,buchungsGruppenIDs, changeValue REAL, absValue REAL, buchungstext TEXT, sepaJSON TEXT, mandatID INTEGER, kontoauszugdateiID INTEGER)";
+        
+        
         
     }
 
@@ -895,7 +897,8 @@ class parser {
                     $this->lookup['mandate'][$mandatID]['umsatzIDsJsonArray'] = "[]";
                 }
                 
-                $insert = 'INSERT INTO umsaetzeGiroKonto (buchungstag, wertstellungstag, buchungsartID,buchungsGruppenIDs, changeValue, absValue, buchungstext, SVWZ,EREF, mandatID , kontoauszugdateiID ) VALUES (:buchungstag,:wertstellungstag,:buchungsartID,:buchungsGruppenIDs,:changeValue,:absValue, :buchungstext,:SVWZ,:EREF,:mandatID,:kontoauszugdateiID)';
+                #$insert = 'INSERT INTO umsaetzeGiroKonto (buchungstag, wertstellungstag, buchungsartID,buchungsGruppenIDs, changeValue, absValue, buchungstext, SVWZ,EREF, mandatID , kontoauszugdateiID ) VALUES (:buchungstag,:wertstellungstag,:buchungsartID,:buchungsGruppenIDs,:changeValue,:absValue, :buchungstext,:SVWZ,:EREF,:mandatID,:kontoauszugdateiID)';
+                $insert = 'INSERT INTO umsaetzeGiroKonto (buchungstag, wertstellungstag, buchungsartID,buchungsGruppenIDs, changeValue, absValue, buchungstext, sepaJSON, mandatID , kontoauszugdateiID ) VALUES (:buchungstag,:wertstellungstag,:buchungsartID,:buchungsGruppenIDs,:changeValue,:absValue, :buchungstext,:sepaJSON,:mandatID,:kontoauszugdateiID)';
                 $stmt = $this->db->prepare($insert);
                 $stmt->bindParam(':buchungstag', $buchung["buchungsTag"]);
                 $stmt->bindParam(':wertstellungstag', $buchung["werstellungsTag"]);
@@ -904,8 +907,20 @@ class parser {
                 $stmt->bindParam(':changeValue', $buchung["changeValue"]);
                 $stmt->bindParam(':absValue', $buchung["absValue"]);
                 $stmt->bindParam(':buchungstext', $buchung["text"]);
-                $stmt->bindParam(':SVWZ', $buchung["sepa"]["SVWZ"]);
-                $stmt->bindParam(':EREF', $buchung["sepa"]["EREF"]);
+                #$stmt->bindParam(':SVWZ', $buchung["sepa"]["SVWZ"]);
+                #$stmt->bindParam(':EREF', $buchung["sepa"]["EREF"]);
+                
+                $sepaArray = array();
+                if (!is_null($buchung["sepa"]["SVWZ"])){
+                  $sepaArray["SVWZ"] = $buchung["sepa"]["SVWZ"];
+                  
+                }
+                if (!is_null($buchung["sepa"]["EREF"])) {
+                  $sepaArray["EREF"] = $buchung["sepa"]["EREF"];
+                  
+                }
+                $sepaJSON = json_encode($sepaArray);
+                $stmt->bindParam(':sepaJSON', $sepaJSON);
                 $stmt->bindParam(':mandatID', $mandatID);
                 $stmt->bindParam(':kontoauszugdateiID', $kontoauszugID);
                 $stmt->execute(); 
